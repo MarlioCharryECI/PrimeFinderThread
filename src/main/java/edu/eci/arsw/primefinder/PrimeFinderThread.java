@@ -3,45 +3,58 @@ package edu.eci.arsw.primefinder;
 import java.util.LinkedList;
 import java.util.List;
 
-public class PrimeFinderThread extends Thread{
+/**
+ * Hilo trabajador que busca primos en [a, b).
+ * Incorpora puntos seguros de pausa controlados por PauseMonitor.
+ */
+public class PrimeFinderThread extends Thread {
 
-	
-	int a,b;
-	
-	private List<Integer> primes;
-	
-	public PrimeFinderThread(int a, int b) {
-		super();
-                this.primes = new LinkedList<>();
-		this.a = a;
-		this.b = b;
-	}
+    private final int a, b;
+    private final List<Integer> primes;
 
-        @Override
-	public void run(){
-            for (int i= a;i < b;i++){						
-                if (isPrime(i)){
+    private final PauseMonitor pauseMonitor;
+    private final PauseMonitor.Ticket ticket;
+
+    public PrimeFinderThread(int a, int b, PauseMonitor pauseMonitor) {
+        super();
+        this.primes = new LinkedList<>();
+        this.a = a;
+        this.b = b;
+        this.pauseMonitor = pauseMonitor;
+        this.ticket = pauseMonitor.newTicket();
+    }
+
+    @Override
+    public void run() {
+        try {
+            for (int i = a; i < b; i++) {
+                pauseMonitor.pausePoint(ticket);
+
+                if (isPrime(i)) {
                     primes.add(i);
-                    System.out.println(i);
+                    //System.out.println(i);
                 }
             }
-	}
-	
-	boolean isPrime(int n) {
-	    boolean ans;
-            if (n > 2) { 
-                ans = n%2 != 0;
-                for(int i = 3;ans && i*i <= n; i+=2 ) {
-                    ans = n % i != 0;
-                }
-            } else {
-                ans = n == 2;
-            }
-	    return ans;
-	}
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        } finally {
+            pauseMonitor.onWorkerFinish(ticket);
+        }
+    }
 
-	public List<Integer> getPrimes() {
-		return primes;
-	}
-	
+    boolean isPrime(int n) {
+        if (n > 2) {
+            if (n % 2 == 0) return false;
+            for (int i = 3; i * i <= n; i += 2) {
+                if (n % i == 0) return false;
+            }
+            return true;
+        } else {
+            return n == 2;
+        }
+    }
+
+    public List<Integer> getPrimes() {
+        return primes;
+    }
 }
